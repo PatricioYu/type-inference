@@ -87,7 +87,7 @@ type alias Model =
 init : Model
 init =
     { showImplicitParens = False
-    , state = Parse ""
+    , state = Parse "(\\x.\\y.x) 2 (if x then false else true)"
     }
 
 
@@ -201,7 +201,7 @@ update msg model =
             { model | showImplicitParens = not model.showImplicitParens }
 
         Reset ->
-            { model | state = Parse "" }
+            { model | state = init.state }
 
         Next ->
             { model | state = next model.state }
