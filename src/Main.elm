@@ -1,13 +1,11 @@
 module Main exposing (Model, Msg(..), WizardStep, main)
 
 import Browser
-import Browser.Events as Events
 import Expr exposing (Expr, fromExpr)
 import ExprParser exposing (parse)
 import Html exposing (Html, button, div, h2, h3, input, label, li, ol, span, text, textarea, ul)
 import Html.Attributes exposing (for, id, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Json.Decode as Decode
 import Rectify exposing (rectify)
 import Restrictions
     exposing
@@ -41,26 +39,8 @@ main =
         { init = \_ -> ( init, Cmd.none )
         , update = \msg model -> ( update msg model, Cmd.none )
         , view = view
-        , subscriptions = \_ -> Events.onKeyPress keyDecoder
+        , subscriptions = \_ -> Sub.none
         }
-
-
-keyDecoder : Decode.Decoder Msg
-keyDecoder =
-    Decode.map toDirection (Decode.field "key" Decode.string)
-
-
-toDirection : String -> Msg
-toDirection string =
-    case string of
-        "ArrowLeft" ->
-            Next
-
-        "ArrowRight" ->
-            Previous
-
-        _ ->
-            NoOp
 
 
 
