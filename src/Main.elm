@@ -41,7 +41,7 @@ main =
         { init = \_ -> ( init, Cmd.none )
         , update = \msg model -> ( update msg model, Cmd.none )
         , view = view
-        , subscriptions = \_ -> Events.onKeyPress keyDecoder
+        , subscriptions = \_ -> Events.onKeyDown keyDecoder
         }
 
 
@@ -54,10 +54,10 @@ toDirection : String -> Msg
 toDirection string =
     case string of
         "ArrowLeft" ->
-            Next
+            Previous
 
         "ArrowRight" ->
-            Previous
+            Next
 
         _ ->
             NoOp
