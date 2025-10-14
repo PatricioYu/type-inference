@@ -2,12 +2,13 @@ module TypedExpr exposing (Context, TypedExpr(..), annotate, fromContext, fromTy
 
 import Dict exposing (Dict)
 import Expr exposing (Expr(..), Id, foldrExpr)
+import FreshNM exposing (FreshN, lift, lift2, lift3)
 import Restrictions exposing (Restrictions)
 import Set exposing (Set)
 import Substitution exposing (Substitution, substitute)
 import Type exposing (Type(..), fromType)
 import UnicodeSmallDigit exposing (shrinkDigits)
-import Utils exposing (lift, lift2, lift3, maybeParens)
+import Utils exposing (maybeParens)
 
 
 type TypedExpr
@@ -92,74 +93,19 @@ annotate expr =
     ( context, typedExpr, n1 )
 
 
-annotateHelper : Expr -> Int -> ( TypedExpr, Int )
-annotateHelper expr n =
-    case expr of
-        Var id ->
-            ( TEVar id, n )
-
-        Abs id e ->
-            let
-                n1 =
-                    n + 1
-
-                ( rec, n2 ) =
-                    annotateHelper e n1
-            in
-            ( TEAbs id (TVar n) rec, n2 )
-
-        App e1 e2 ->
-            let
-                ( rec1, n1 ) =
-                    annotateHelper e1 n
-
-                ( rec2, n2 ) =
-                    annotateHelper e2 n1
-            in
-            ( TEApp rec1 rec2, n2 )
-
-        ConstTrue ->
-            ( TEConstTrue, n )
-
-        ConstFalse ->
-            ( TEConstFalse, n )
-
-        IsZero e ->
-            let
-                ( rec, n1 ) =
-                    annotateHelper e n
-            in
-            ( TEIsZero rec, n1 )
-
-        ConstZero ->
-            ( TEConstZero, n )
-
-        Succ e ->
-            let
-                ( rec, n1 ) =
-                    annotateHelper e n
-            in
-            ( TESucc rec, n1 )
-
-        Pred e ->
-            let
-                ( rec, n1 ) =
-                    annotateHelper e n
-            in
-            ( TEPred rec, n1 )
-
-        If e1 e2 e3 ->
-            let
-                ( rec1, n1 ) =
-                    annotateHelper e1 n
-
-                ( rec2, n2 ) =
-                    annotateHelper e2 n1
-
-                ( rec3, n3 ) =
-                    annotateHelper e3 n2
-            in
-            ( TEIf rec1 rec2 rec3, n3 )
+annotateHelper : Expr -> FreshN TypedExpr
+annotateHelper =
+    foldrExpr
+        (\id n -> ( TEVar id, n ))
+        (\id fRec n -> lift (\rec -> TEAbs id (TVar n) rec) fRec (n + 1))
+        (\fRec1 fRec2 -> lift2 TEApp fRec1 fRec2)
+        (\n -> ( TEConstTrue, n ))
+        (\n -> ( TEConstFalse, n ))
+        (\fRec -> lift TEIsZero fRec)
+        (\n -> ( TEConstZero, n ))
+        (\fRec -> lift TESucc fRec)
+        (\fRec -> lift TEPred fRec)
+        (\fRec1 fRec2 fRec3 -> lift3 TEIf fRec1 fRec2 fRec3)
 
 
 foldrTypedExpr :
@@ -277,12 +223,7 @@ fromTypedExpr showImplicitParens =
         (\_ rec -> "succ(" ++ rec ++ ")")
         (\_ rec -> "pred(" ++ rec ++ ")")
         (\_ rec1 _ rec2 _ rec3 ->
-            "if "
-                ++ rec1
-                ++ " then "
-                ++ rec2
-                ++ " else "
-                ++ rec3
+            "if " ++ rec1 ++ " then " ++ rec2 ++ " else " ++ rec3
         )
 
 
@@ -306,28 +247,21 @@ isIf expr =
             False
 
 
-infer : Context -> TypedExpr -> Int -> ( Maybe ( Type, Restrictions ), Int )
-infer context e n =
-    case e of
-        TEVar id ->
-            ( Maybe.map
-                (\t -> ( t, Restrictions.empty ))
-                (Dict.get id context)
-            , n
-            )
-
-        TEAbs id varType e1 ->
-            lift
-                (infer (Dict.insert id varType context))
-                (\( bodyType, r1 ) ->
-                    ( TAbs varType bodyType, r1 )
-                )
-                e1
-                n
-
-        TEApp e1 e2 ->
-            lift2
-                (infer context)
+infer : TypedExpr -> Context -> FreshN (Maybe ( Type, Restrictions ))
+infer =
+    let
+        liftM =
+            lift << Maybe.map
+    in
+    foldrTypedExpr
+        (\id ctx n -> ( Maybe.map (\t -> ( t, Restrictions.empty )) (Dict.get id ctx), n ))
+        (\id varType fRec ctx ->
+            liftM
+                (\( bodyType, r1 ) -> ( TAbs varType bodyType, r1 ))
+                (fRec (Dict.insert id varType ctx))
+        )
+        (\fRec1 fRec2 ctx n ->
+            (lift2 << Maybe.map2)
                 (\( type1, rest1 ) ( type2, rest2 ) ->
                     ( TVar n
                     , Restrictions.insert
@@ -335,47 +269,30 @@ infer context e n =
                         (Restrictions.union rest1 rest2)
                     )
                 )
-                e1
-                e2
+                (fRec1 ctx)
+                (fRec2 ctx)
                 (n + 1)
-
-        TEConstTrue ->
-            ( Just ( TBool, Restrictions.empty ), n )
-
-        TEConstFalse ->
-            ( Just ( TBool, Restrictions.empty ), n )
-
-        TEIsZero e1 ->
-            lift (infer context)
-                (\( type1, rest1 ) ->
-                    ( TBool, Restrictions.insert ( type1, TNat ) rest1 )
-                )
-                e1
-                n
-
-        TEConstZero ->
-            ( Just ( TNat, Restrictions.empty ), n )
-
-        TESucc e1 ->
-            lift (infer context)
-                (\( type1, rest1 ) ->
-                    ( TNat, Restrictions.insert ( type1, TNat ) rest1 )
-                )
-                e1
-                n
-
-        TEPred e1 ->
-            lift
-                (infer context)
-                (\( type1, rest1 ) ->
-                    ( TNat, Restrictions.insert ( type1, TNat ) rest1 )
-                )
-                e1
-                n
-
-        TEIf e1 e2 e3 ->
-            lift3
-                (infer context)
+        )
+        (\_ n -> ( Just ( TBool, Restrictions.empty ), n ))
+        (\_ n -> ( Just ( TBool, Restrictions.empty ), n ))
+        (\fRec ctx ->
+            liftM
+                (\( type1, rest1 ) -> ( TBool, Restrictions.insert ( type1, TNat ) rest1 ))
+                (fRec ctx)
+        )
+        (\_ n -> ( Just ( TNat, Restrictions.empty ), n ))
+        (\fRec ctx ->
+            liftM
+                (\( type1, rest1 ) -> ( TNat, Restrictions.insert ( type1, TNat ) rest1 ))
+                (fRec ctx)
+        )
+        (\fRec ctx ->
+            liftM
+                (\( type1, rest1 ) -> ( TNat, Restrictions.insert ( type1, TNat ) rest1 ))
+                (fRec ctx)
+        )
+        (\fRec1 fRec2 fRec3 ctx ->
+            (lift3 << Maybe.map3)
                 (\( type1, rest1 ) ( type2, rest2 ) ( type3, rest3 ) ->
                     ( type2
                     , Restrictions.union rest1 rest2
@@ -384,7 +301,7 @@ infer context e n =
                         |> Restrictions.insert ( type2, type3 )
                     )
                 )
-                e1
-                e2
-                e3
-                n
+                (fRec1 ctx)
+                (fRec2 ctx)
+                (fRec3 ctx)
+        )

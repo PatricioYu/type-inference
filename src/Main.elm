@@ -160,7 +160,7 @@ next step =
         Infer { input, parsedExpr, rectExpr, context, annotatedExpr, annotateLastFreshN } ->
             let
                 ( maybeRes, inferLastFreshN ) =
-                    infer context annotatedExpr annotateLastFreshN
+                    infer annotatedExpr context annotateLastFreshN
             in
             case maybeRes of
                 Nothing ->
@@ -382,7 +382,7 @@ viewStep model =
             Infer { context, annotatedExpr, annotateLastFreshN } ->
                 let
                     maybeRes =
-                        Tuple.first <| infer context annotatedExpr annotateLastFreshN
+                        Tuple.first <| infer annotatedExpr context annotateLastFreshN
                 in
                 case maybeRes of
                     Nothing ->

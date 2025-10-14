@@ -55,8 +55,8 @@ count x (Multiset d) =
 
 union : Multiset comparable -> Multiset comparable -> Multiset comparable
 union (Multiset d1) (Multiset d2) =
-    Multiset
-        (Dict.foldr
+    Multiset <|
+        Dict.foldr
             (\k v rec ->
                 if Dict.member k rec then
                     Dict.update k (Maybe.map (\x -> x + v)) rec
@@ -66,4 +66,3 @@ union (Multiset d1) (Multiset d2) =
             )
             d1
             d2
-        )

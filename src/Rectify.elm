@@ -80,7 +80,10 @@ rectifyHelper e freeVars boundVars =
                         id
                             ++ fromInt
                                 (until
-                                    (\nId -> not (isFreeVar (getId nId)) && not (Multiset.member (getId nId) boundVars))
+                                    (\nId ->
+                                        not (isFreeVar (getId nId))
+                                            && not (Multiset.member (getId nId) boundVars)
+                                    )
                                     (\nId -> nId + 1)
                                     1
                                 )
