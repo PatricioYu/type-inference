@@ -6,8 +6,9 @@ import Expr exposing (Expr, fromExpr)
 import ExprParser exposing (parse)
 import Html exposing (Html, button, div, h2, h3, input, label, li, ol, span, text, textarea, ul)
 import Html.Attributes exposing (for, id, style, type_, value)
-import Html.Events exposing (onClick, onInput)
+import Html.Events exposing (onBlur, onClick, onFocus, onInput)
 import Json.Decode as Decode
+import Platform.Sub as Sub
 import Rectify exposing (rectify)
 import Restrictions
     exposing
@@ -41,13 +42,17 @@ main =
         { init = \_ -> ( init, Cmd.none )
         , update = \msg model -> ( update msg model, Cmd.none )
         , view = view
-        , subscriptions = \_ -> Events.onKeyDown keyDecoder
+        , subscriptions = subscriptions
         }
 
 
-keyDecoder : Decode.Decoder Msg
-keyDecoder =
-    Decode.map toDirection (Decode.field "key" Decode.string)
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    if model.focusingTextArea then
+        Sub.none
+
+    else
+        Events.onKeyDown <| Decode.map toDirection (Decode.field "key" Decode.string)
 
 
 toDirection : String -> Msg
@@ -101,6 +106,7 @@ type WizardStep
 
 type alias Model =
     { showImplicitParens : Bool
+    , focusingTextArea : Bool
     , state : WizardStep
     }
 
@@ -108,6 +114,7 @@ type alias Model =
 init : Model
 init =
     { showImplicitParens = False
+    , focusingTextArea = False
     , state = Parse "(\\x.\\y.x) 2 (if x then false else true)"
     }
 
@@ -119,6 +126,8 @@ init =
 type Msg
     = NoOp
     | Change String
+    | FocusTextArea
+    | BlurTextArea
     | ToggleImplicitParens
     | Reset
     | Previous
@@ -216,6 +225,9 @@ previous step =
 update : Msg -> Model -> Model
 update msg model =
     case msg of
+        NoOp ->
+            model
+
         Change newInput ->
             { model | state = Parse newInput }
 
@@ -231,8 +243,11 @@ update msg model =
         Previous ->
             { model | state = previous model.state }
 
-        NoOp ->
-            model
+        FocusTextArea ->
+            { model | focusingTextArea = True }
+
+        BlurTextArea ->
+            { model | focusingTextArea = False }
 
 
 
@@ -300,6 +315,8 @@ exprTextArea input =
     textarea
         [ value input
         , onInput Change
+        , onFocus FocusTextArea
+        , onBlur BlurTextArea
         , style "margin-bottom" "12px"
         , style "font-size" "16px"
         ]
