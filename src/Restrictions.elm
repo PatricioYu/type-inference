@@ -66,10 +66,10 @@ fromMguError mguErr =
     in
     case mguErr of
         Clash t1 t2 ->
-            "Clash/Colisión entre " ++ errorMessage t1 t2
+            "Clash entre " ++ errorMessage t1 t2
 
         OccursCheck t1 t2 ->
-            "OccursCheck entre " ++ errorMessage t1 t2
+            "Occurs check entre " ++ errorMessage t1 t2
 
 
 mgu : Restrictions -> Result MguError Substitution
